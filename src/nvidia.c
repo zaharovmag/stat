@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define HAVE_NVIDIA
 #include <stat_common.h>
 
 #define  __NV_DEF_DEV_COUNT 2
