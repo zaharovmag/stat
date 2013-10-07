@@ -15,6 +15,12 @@ struct __device_link
     nvmlDevice_t * __nv_dev;
     int devno;
     unsigned int pci_gen;
+    unsigned int cur_pci_width;
+    unsigned long long gpu_memory_total;
+    unsigned long long last_gpu_mem_free;
+    unsigned long long last_gpu_mem_used;
+    unsigned int last_gpu_ut;
+    unsigned int last_gpu_mem_ut;
 };
 
 typedef struct __device_head device_head;
@@ -34,6 +40,9 @@ struct __nv_ctx{
   unsigned int devs;
   device_head * dh;
 };
+
+#define DEV_LINK(ctx,no) \
+    ctx->dh->arr_ptr[no]
 
 #define __NVML_SUCCESS(x) (x == NVML_SUCCESS)
 
@@ -109,13 +118,28 @@ __alloc_dev(int i)
     dl->devno = i;
     dl->next = NULL;
     dl->__nv_dev = malloc(sizeof(nvmlDevice_t));
-    if(!dl->__nv_dev){
+    if (!dl->__nv_dev){
 	LOG_ERROR("alloc error\n");
 	free(dl);
 	return NULL;
     }
     return dl;
 }
+
+static void
+__nv_ctx_free(nv_ctx *ctx)
+{
+    if (!ctx)
+	abort();
+
+    FOR_EACH(ctx->devs){
+	free(ctx->dh->arr_ptr[i]);
+    }
+    free(ctx->dh->arr_ptr);
+    free(ctx->dh);
+    free(ctx);
+}
+
 
 static int
 __fix_unsupported_bug(nvmlDevice_t device)
@@ -128,9 +152,9 @@ __fix_unsupported_bug(nvmlDevice_t device)
       != NVML_SUCCESS)
       return 1;
 
-    if (!strcmp(version, "1325.08") ||
-        !strcmp(version, "1319.32") ||
-        !strcmp(version, "1319.23") ||
+    if (!strcmp(version, "325.08") ||
+        !strcmp(version, "319.32") ||
+        !strcmp(version, "319.23") ||
         !strcmp(version, "325.15"))
     {
       #ifdef __i386__
@@ -146,7 +170,10 @@ __fix_unsupported_bug(nvmlDevice_t device)
   return 1;
 }
 
-static void _nv_init(nv_ctx * ctx)
+
+
+void
+nv_init(nv_ctx * ctx)
 {
   int ret;
   device_link *dl;
@@ -172,24 +199,92 @@ static void _nv_init(nv_ctx * ctx)
       ret = nvmlDeviceGetCurrPcieLinkGeneration(*dl->__nv_dev,&dl->pci_gen);
       NV_CK(ret,"getPciGen");
 
+      ret = nvmlDeviceGetCurrPcieLinkWidth(*dl->__nv_dev,
+					 &dl->cur_pci_width);
+
+      NV_CK(ret,"getPciWidth");
+
   }
 }
 
-static void _nv_shutdown(nv_ctx *ctx)
+
+
+void
+nv_shutdown(nv_ctx *ctx)
 {
+    nvmlShutdown();
+    __nv_ctx_free(ctx);
 }
 
 
 
+int
+nv_gather_stat(nv_ctx *ctx,int devno)
+{
+    int ret;
+    device_link *dl;
+    nvmlUtilization_t ut;
+    nvmlMemory_t mi;
 
+    if(!ctx)
+	abort();
+    dl = ctx->dh->arr_ptr[devno];
+
+    ret = nvmlDeviceGetUtilizationRates(*dl->__nv_dev,&ut);
+    NV_CK(ret,"getUtilization");
+    dl->last_gpu_ut = ut.gpu;
+    dl->last_gpu_mem_ut = ut.memory;
+
+    ret = nvmlDeviceGetMemoryInfo(*dl->__nv_dev,&mi);
+    NV_CK(ret,"getMemoryInfo");
+    dl->gpu_memory_total = mi.total;
+    dl->last_gpu_mem_free = mi.free;
+    dl->last_gpu_mem_used = mi.used;
+
+    return 1;
+}
+
+int
+nv_get_gpu_ut(nv_ctx *ctx,int devno)
+{
+    return DEV_LINK(ctx,devno)->last_gpu_ut;
+}
+
+int
+nv_get_gpu_mem_ut(nv_ctx *ctx,int devno)
+{
+    return DEV_LINK(ctx,devno)->last_gpu_mem_ut;
+}
+
+int
+nv_get_gpu_mem_usage_pct(nv_ctx *ctx,int devno)
+{
+    return DEV_LINK(ctx,devno)->last_gpu_mem_used /
+	(DEV_LINK(ctx,devno)->gpu_memory_total/100);
+}
+
+
+#ifdef __TEST_ONLY__
 int main()
 {
   nv_ctx *ctx = malloc(sizeof(nv_ctx));
 
-  _nv_init(ctx);
+
+  nv_init(ctx);
+  nv_gather_stat(ctx,0);
+  nv_gather_stat(ctx,1);
+
+  printf("gpu utilization %d%%\n",
+	nv_get_gpu_ut(ctx,0));
+  printf("gpu memory utilization %d%%\n",
+	nv_get_gpu_mem_ut(ctx,0));
+
+  printf("gpu memory usage %d%%\n",
+	nv_get_gpu_mem_usage_pct(ctx,0));
 
   printf("nvidia: dev_count: %d\n",ctx->devs);
 
 
-  _nv_shutdown(ctx);
+  nv_shutdown(ctx);
 }
+#endif
