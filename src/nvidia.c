@@ -11,16 +11,16 @@ typedef struct __device_link device_link;
 
 struct __device_link
 {
-    device_link * next;
-    nvmlDevice_t * __nv_dev;
-    int devno;
-    unsigned int pci_gen;
-    unsigned int cur_pci_width;
-    unsigned long long gpu_memory_total;
-    unsigned long long last_gpu_mem_free;
-    unsigned long long last_gpu_mem_used;
-    unsigned int last_gpu_ut;
-    unsigned int last_gpu_mem_ut;
+  device_link * next;
+  nvmlDevice_t * __nv_dev;
+  int devno;
+  unsigned int pci_gen;
+  unsigned int cur_pci_width;
+  unsigned long long gpu_memory_total;
+  unsigned long long last_gpu_mem_free;
+  unsigned long long last_gpu_mem_used;
+  unsigned int last_gpu_ut;
+  unsigned int last_gpu_mem_ut;
 };
 
 typedef struct __device_head device_head;
@@ -68,7 +68,7 @@ __alloc_dev_head()
   dh->last = NULL;
 
   dh->arr_ptr = malloc(sizeof(void *) * __NV_DEF_DEV_COUNT );
-  if(!dh->arr_ptr){
+  if (!dh->arr_ptr){
     LOG_ERROR("malloc error\n");
     free(dh);
     return NULL;
@@ -85,18 +85,18 @@ __dev_add(nv_ctx * ctx,device_link *link)
 {
   device_head * dh;
 
-  if(!ctx || !ctx->devs)
+  if (!ctx || !ctx->devs)
     abort();
 
   dh = ctx->dh;
 
-  if(!dh->first){
+  if (!dh->first){
     dh->first = link;
     dh->first->next = link;
     dh->last = link;
     dh->arr_ptr[0] = (void *)link;
     dh->arr_cur ++;
-  }else{
+  } else {
     /*TODO extend array*/
     dh->first->next = link;
     dh->last = link;
@@ -110,18 +110,18 @@ __alloc_dev(int i)
 {
     device_link *dl;
     dl = malloc(sizeof(device_link));
-    if(!dl){
-	LOG_ERROR("alloc error\n");
-	return NULL;
+    if (!dl){
+	    LOG_ERROR("alloc error\n");
+	    return NULL;
     }
 
     dl->devno = i;
     dl->next = NULL;
     dl->__nv_dev = malloc(sizeof(nvmlDevice_t));
     if (!dl->__nv_dev){
-	LOG_ERROR("alloc error\n");
-	free(dl);
-	return NULL;
+      LOG_ERROR("alloc error\n");
+      free(dl);
+      return NULL;
     }
     return dl;
 }
@@ -130,10 +130,10 @@ static void
 __nv_ctx_free(nv_ctx *ctx)
 {
     if (!ctx)
-	abort();
+	    abort();
 
     FOR_EACH(ctx->devs){
-	free(ctx->dh->arr_ptr[i]);
+	    free(ctx->dh->arr_ptr[i]);
     }
     free(ctx->dh->arr_ptr);
     free(ctx->dh);
@@ -185,7 +185,7 @@ nv_init(nv_ctx * ctx)
   ret = nvmlDeviceGetCount(&ctx->devs);
   NV_CK(ret,"GetDeviceCOunt()\n");
   ctx->dh = __alloc_dev_head();
-  if(!ctx->dh)
+  if (!ctx->dh)
       abort();
 
   FOR_EACH(ctx->devs){
@@ -226,8 +226,8 @@ nv_gather_stat(nv_ctx *ctx,int devno)
     nvmlUtilization_t ut;
     nvmlMemory_t mi;
 
-    if(!ctx)
-	abort();
+    if (!ctx)
+      abort();
     dl = ctx->dh->arr_ptr[devno];
 
     ret = nvmlDeviceGetUtilizationRates(*dl->__nv_dev,&ut);
@@ -260,7 +260,7 @@ int
 nv_get_gpu_mem_usage_pct(nv_ctx *ctx,int devno)
 {
     return DEV_LINK(ctx,devno)->last_gpu_mem_used /
-	(DEV_LINK(ctx,devno)->gpu_memory_total/100);
+                    (DEV_LINK(ctx,devno)->gpu_memory_total/100);
 }
 
 
